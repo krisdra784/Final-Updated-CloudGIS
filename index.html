@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/MarkerCluster.css">
+        <link rel="stylesheet" href="css/MarkerCluster.Default.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1b1e;
+            color: #e2e8f0;
+        }
+
+        /* Split-screen layout setup */
+        .dashboard-wrapper {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar container */
+        .sidebar-panel {
+            width: 25%;
+            min-width: 340px;
+            max-width: 400px;
+            height: 100%;
+            background-color: #21222c;
+            border-right: 1px solid #343746;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            overflow-y: auto;
+            gap: 20px;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+
+        /* Map Workspace */
+        #map {
+            width: 75%;
+            height: 100%;
+            flex-grow: 1;
+        }
+
+        .sidebar-panel h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 6px 0;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .sidebar-panel .description {
+            font-size: 13px;
+            color: #94a3b8;
+            margin: 0 0 10px 0;
+            line-height: 1.5;
+        }
+
+        /* Card panels for layout organization */
+        .content-card {
+            background-color: #16171d;
+            border: 1px solid #2e303e;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .card-header {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #38bdf8;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #2e303e;
+            padding-bottom: 6px;
+        }
+
+        /* Leaflet layer tree style overrides for sidebar implementation */
+        #layer-toggles-container .leaflet-control-layers-tree {
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+            color: #343746 !important;
+            font-size: 13.5px !important;
+            position: static !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        #layer-toggles-container label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        #layer-toggles-container input[type="checkbox"] {
+            margin-right: 10px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: #38bdf8;
+        }
+
+        /* Suppress baseline plugin image elements in the toggle menu */
+        #layer-toggles-container img, 
+        #layer-toggles-container table, 
+        #layer-toggles-container br {
+            display: none !important;
+        }
+
+        /* Custom high-fidelity CSS Legend styling */
+        .symbology-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .symbology-item {
+            display: flex;
+            align-items: center;
+            color: #ffffff;
+        }
+
+        .vector-ghg {
+            width: 22px;
+            height: 0;
+            border-top: 3.5px solid rgba(77,175,74,1.0);
+            margin-right: 12px;
+        }
+
+        .vector-well {
+            width: 10px;
+            height: 10px;
+            background-color: rgba(0,0,0,1.0);
+            border: 1.5px solid #343746;
+            border-radius: 50%;
+            margin-right: 18px;
+            margin-left: 6px;
+        }
+
+        .vector-line {
+            width: 22px;
+            height: 0;
+            border-top: 2.5px solid rgba(255,17,0,1.0);
+            margin-right: 12px;
+        }
+
+        .nested-sub-tree {
+            margin-left: 14px;
+            padding-left: 12px;
+            border-left: 1px dashed #343746;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .color-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        </style>
+        <title>Petroleum & GHG Asset Management Portal</title>
+    </head>
+    <body>
+        <div class="dashboard-wrapper">
+            <div class="sidebar-panel">
+                <div>
+                    <h1>Cloud-Based GIS Application for Offshore Oil Reserve </h1>
+                    <div class="description">interactive web map interface depicting energy, infrastructure, and environmental management areas located off the northwest coast of Australia - 
+                        
+                        By Kris</div>
+                </div>
+
+                <div class="content-card" style="background-color: #1a1d24; border-radius: 4px; padding: 12px;">
+                     <div class="card-header">Layer Visibility Toggles</div>
+                     <div id="layer-toggles-container"></div>
+                     <style>
+                        #layer-toggles-container, 
+                        #layer-toggles-container * {
+                            background-color: #1a1d24 !important;
+                            color: #ffffff !important;
+                            border: none !important;
+                        }
+                </style>
+                </div>
+                
+                <div class="content-card">
+                    <div class="card-header">Map Symbology Key</div>
+                    <div class="symbology-list">
+                        <div class="symbology-item" style="display: flex; align-items: center;">
+                             <div style="width: 16px; display: flex; justify-content: center; margin-right: 12px;">
+                                <i class="fas fa-square fa-fw" style="color: #ffffff;"></i>
+                             </div>
+                             <span>Petroleum Titles</span>
+                        </div>
+                        <div class="symbology-item">
+                            <div class="vector-well"></div>
+                            <span>Petroleum Wells</span>
+                        </div>
+                        <div class="symbology-item">
+                            <div class="vector-line"></div>
+                            <span>Petroleum Lines</span>
+                        </div>
+                        <div class="symbology-item">
+                            <div class="vector-ghg"></div>
+                            <span>GreenHouse Gas Permits</span>
+                        </div>
+                        <div class="symbology-item" style="display: flex; align-items: center;">
+                             <div style="width: 16px; display: flex; justify-content: center; margin-right: 12px;">
+                                 <i class="fas fa-map fa-fw" style="color: #aaaaaa;"></i>
+                             </div>
+                             <span>OSM Standard Base Map</span>
+                        </div>
+                        
+                        <div>
+                            <div class="symbology-item" style="font-weight: 600; color: #ffffff; margin-top: 4px;">
+                                <span>Petroleum Titles Classifications:</span>
+                            </div>
+                            <div class="nested-sub-tree">
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(255,0,244,1.0); border: 1px solid #ffffff;"></div><span>Access Authority</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(71,119,239,1.0);"></div><span>Exploration Permit</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(27,208,213,1.0);"></div><span>Greenhouse Gas Assessment</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(100,253,106,1.0);"></div><span>Infrastructure Licence</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(211,232,53,1.0);"></div><span>Pipeline Licence</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(254,153,44,1.0);"></div><span>Production Licence</span></div>
+                                <div class="symbology-item"><div class="color-swatch" style="background: rgba(217,56,7,1.0);"></div><span>Retention Lease</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="map"></div>
+        </div>
+
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="js/leaflet.markercluster.js"></script>
+        <script src="data/PetroleumTitles_1.js"></script>
+        <script src="data/PetroleumLines_2.js"></script>
+        <script src="data/PetroleumWells_3.js"></script>
+        <script src="data/GreenHouseGasPermits_4.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[-24.64186477798738,110.42677028517018],[-7.887305564689774,134.75689996106837]]);
+
+        
+        L.control.scale({
+           position: 'bottomleft', // Positions the scale in the lower-left corner
+           metric: true,           // Displays meters and kilometers
+           imperial: true          // Displays feet and miles
+        }).addTo(map);
+
+        
+        var compassControl = L.control({ position: 'bottomright' });
+        compassControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'map-compass');
+            div.innerHTML = '<img src="images/compass-flat-icon-design-png.webp" style="width: 160px; height: 160px; margin-right: 10px; margin-bottom: 10px; opacity: .70;">';
+            return div;
+        };
+        compassControl.addTo(map);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() { popup.update(); }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() { popup.setContent(tempDiv.innerHTML); popup.update(); }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    video.addEventListener('loadedmetadata', function() { popup.update(); });
+                    setTimeout(function() { popup.setContent(tempDiv.innerHTML); popup.update(); }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'feet',
+            secondaryLengthUnit: 'miles',
+            primaryAreaUnit: 'sqfeet',
+            secondaryAreaUnit: 'sqmiles'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {}
+        
+        map.createPane('pane_OSMStandard_0');
+        map.getPane('pane_OSMStandard_0').style.zIndex = 400;
+        var layer_OSMStandard_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OSMStandard_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors, CC-BY-SA</a>',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        map.addLayer(layer_OSMStandard_0);
+
+        function pop_PetroleumTitles_1(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="Title" colspan="2"><strong>Title</strong><br />' + (feature.properties['Title'] !== null ? autolinker.link(String(feature.properties['Title']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['RelTitle'] !== null ? autolinker.link(String(feature.properties['RelTitle']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TitleType'] !== null ? autolinker.link(String(feature.properties['TitleType']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="ExpiryDate" colspan="2"><strong>ExpiryDate</strong><br />' + (feature.properties['ExpiryDate'] !== null ? autolinker.link(String(feature.properties['ExpiryDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GrantDate'] !== null ? autolinker.link(String(feature.properties['GrantDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['LastReDate'] !== null ? autolinker.link(String(feature.properties['LastReDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NoOfRenews'] !== null ? autolinker.link(String(feature.properties['NoOfRenews']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['EndDate'] !== null ? autolinker.link(String(feature.properties['EndDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Status</th>\
+                        <td class="visible-with-data" id="Status">' + (feature.properties['Status'] !== null ? autolinker.link(String(feature.properties['Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">FieldName</th>\
+                        <td class="visible-with-data" id="FieldName">' + (feature.properties['FieldName'] !== null ? autolinker.link(String(feature.properties['FieldName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BasinName'] !== null ? autolinker.link(String(feature.properties['BasinName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['SubBasin'] !== null ? autolinker.link(String(feature.properties['SubBasin']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">OffShrArea</th>\
+                        <td class="visible-with-data" id="OffShrArea">' + (feature.properties['OffShrArea'] !== null ? autolinker.link(String(feature.properties['OffShrArea']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TtlOprator'] !== null ? autolinker.link(String(feature.properties['TtlOprator']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">TtlHolders</th>\
+                        <td class="visible-with-data" id="TtlHolders">' + (feature.properties['TtlHolders'] !== null ? autolinker.link(String(feature.properties['TtlHolders']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NoOfBlocks'] !== null ? autolinker.link(String(feature.properties['NoOfBlocks']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['AreaKM2'] !== null ? autolinker.link(String(feature.properties['AreaKM2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NEATS_Link'] !== null ? autolinker.link(String(feature.properties['NEATS_Link']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TtlNoNEATS'] !== null ? autolinker.link(String(feature.properties['TtlNoNEATS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+            layer.on('popupopen', function(e) { addClassToPopupIfMedia(content, e.popup); });
+            layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PetroleumTitles_1_0(feature) {
+            switch(String(feature.properties['TitleType'])) {
+                case 'Access Authority':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(247,247,247,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(255,0,244,1.0)', interactive: true }
+                    break;
+                case 'Exploration Permit':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(71,119,239,1.0)', interactive: true }
+                    break;
+                case 'Greenhouse Gas Assessment Permit':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(27,208,213,1.0)', interactive: true }
+                    break;
+                case 'Infrastructure Licence':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(100,253,106,1.0)', interactive: true }
+                    break;
+                case 'Pipeline Licence':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(211,232,53,1.0)', interactive: true }
+                    break;
+                case 'Production Licence':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(254,153,44,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(254,153,44,1.0)', interactive: true }
+                    break;
+                case 'Retention Lease':
+                    return { pane: 'pane_PetroleumTitles_1', opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1.0, fill: true, fillOpacity: 1, fillColor: 'rgba(217,56,7,1.0)', interactive: true }
+                    break;
+            }
+        }
+        
+        map.createPane('pane_PetroleumTitles_1');
+        map.getPane('pane_PetroleumTitles_1').style.zIndex = 401;
+        var layer_PetroleumTitles_1 = new L.geoJson(json_PetroleumTitles_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PetroleumTitles_1',
+            layerName: 'layer_PetroleumTitles_1',
+            pane: 'pane_PetroleumTitles_1',
+            onEachFeature: pop_PetroleumTitles_1,
+            style: style_PetroleumTitles_1_0,
+        });
+        bounds_group.addLayer(layer_PetroleumTitles_1);
+        map.addLayer(layer_PetroleumTitles_1);
+
+        function pop_PetroleumLines_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="PL_Title" colspan="2"><strong>PL_Title</strong><br />' + (feature.properties['PL_Title'] !== null ? autolinker.link(String(feature.properties['PL_Title']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PL_Name" colspan="2"><strong>PL_Name</strong><br />' + (feature.properties['PL_Name'] !== null ? autolinker.link(String(feature.properties['PL_Name']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Operator" colspan="2"><strong>Operator</strong><br />' + (feature.properties['Operator'] !== null ? autolinker.link(String(feature.properties['Operator']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TitleHolde'] !== null ? autolinker.link(String(feature.properties['TitleHolde']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GrantDate'] !== null ? autolinker.link(String(feature.properties['GrantDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">StartPoint</th>\
+                        <td class="visible-with-data" id="StartPoint">' + (feature.properties['StartPoint'] !== null ? autolinker.link(String(feature.properties['StartPoint']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">EndPoint</th>\
+                        <td class="visible-with-data" id="EndPoint">' + (feature.properties['EndPoint'] !== null ? autolinker.link(String(feature.properties['EndPoint']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NEATS'] !== null ? autolinker.link(String(feature.properties['NEATS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['OffshoreAr'] !== null ? autolinker.link(String(feature.properties['OffshoreAr']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+            layer.on('popupopen', function(e) { addClassToPopupIfMedia(content, e.popup); });
+            layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PetroleumLines_2_0() {
+            return { pane: 'pane_PetroleumLines_2', opacity: 1, color: 'rgba(255,17,0,1.0)', dashArray: '', lineCap: 'square', lineJoin: 'bevel', weight: 1.0, fillOpacity: 0, interactive: true }
+        }
+        
+        map.createPane('pane_PetroleumLines_2');
+        map.getPane('pane_PetroleumLines_2').style.zIndex = 402;
+        var layer_PetroleumLines_2 = new L.geoJson(json_PetroleumLines_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PetroleumLines_2',
+            layerName: 'layer_PetroleumLines_2',
+            pane: 'pane_PetroleumLines_2',
+            onEachFeature: pop_PetroleumLines_2,
+            style: style_PetroleumLines_2_0,
+        });
+        bounds_group.addLayer(layer_PetroleumLines_2);
+        map.addLayer(layer_PetroleumLines_2);
+
+        function pop_PetroleumWells_3(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Uwi'] !== null ? autolinker.link(String(feature.properties['Uwi']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="WellName" colspan="2"><strong>WellName</strong><br />' + (feature.properties['WellName'] !== null ? autolinker.link(String(feature.properties['WellName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Ubhi'] !== null ? autolinker.link(String(feature.properties['Ubhi']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BHName'] !== null ? autolinker.link(String(feature.properties['BHName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['OffshrArea'] !== null ? autolinker.link(String(feature.properties['OffshrArea']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Jurisdictn'] !== null ? autolinker.link(String(feature.properties['Jurisdictn']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="IsOffshore" colspan="2"><strong>IsOffshore</strong><br />' + (feature.properties['IsOffshore'] !== null ? autolinker.link(String(feature.properties['IsOffshore']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Basin'] !== null ? autolinker.link(String(feature.properties['Basin']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['SubBasin'] !== null ? autolinker.link(String(feature.properties['SubBasin']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Legislatn'] !== null ? autolinker.link(String(feature.properties['Legislatn']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TtlNumber'] !== null ? autolinker.link(String(feature.properties['TtlNumber']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Operator'] !== null ? autolinker.link(String(feature.properties['Operator']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BHOperator'] !== null ? autolinker.link(String(feature.properties['BHOperator']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['RigCntrctr'] !== null ? autolinker.link(String(feature.properties['RigCntrctr']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['KckOffDate'] !== null ? autolinker.link(String(feature.properties['KckOffDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BRlvDate'] !== null ? autolinker.link(String(feature.properties['BRlvDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BRlsDate'] !== null ? autolinker.link(String(feature.properties['BRlsDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Type</th>\
+                        <td class="visible-with-data" id="Type">' + (feature.properties['Type'] !== null ? autolinker.link(String(feature.properties['Type']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Purpose'] !== null ? autolinker.link(String(feature.properties['Purpose']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Rig'] !== null ? autolinker.link(String(feature.properties['Rig']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['RigRlsDate'] !== null ? autolinker.link(String(feature.properties['RigRlsDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['IntRlsDate'] !== null ? autolinker.link(String(feature.properties['IntRlsDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['IntRlvDate'] !== null ? autolinker.link(String(feature.properties['IntRlvDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Comments</th>\
+                        <td class="visible-with-data" id="Comments">' + (feature.properties['Comments'] !== null ? autolinker.link(String(feature.properties['Comments']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Alias'] !== null ? autolinker.link(String(feature.properties['Alias']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Latitude</th>\
+                        <td class="visible-with-data" id="Latitude">' + (feature.properties['Latitude'] !== null ? autolinker.link(String(feature.properties['Latitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Longitude</th>\
+                        <td class="visible-with-data" id="Longitude">' + (feature.properties['Longitude'] !== null ? autolinker.link(String(feature.properties['Longitude']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+            layer.on('popupopen', function(e) { addClassToPopupIfMedia(content, e.popup); });
+            layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PetroleumWells_3_0() {
+            return { pane: 'pane_PetroleumWells_3', radius: 4.0, opacity: 1, color: 'rgba(35,35,35,1.0)', dashArray: '', lineCap: 'butt', lineJoin: 'miter', weight: 1, fill: true, fillOpacity: 1, fillColor: 'rgba(0,0,0,1.0)', interactive: true }
+        }
+        
+        map.createPane('pane_PetroleumWells_3');
+        map.getPane('pane_PetroleumWells_3').style.zIndex = 403;
+        var layer_PetroleumWells_3 = new L.geoJson(json_PetroleumWells_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PetroleumWells_3',
+            layerName: 'layer_PetroleumWells_3',
+            pane: 'pane_PetroleumWells_3',
+            onEachFeature: pop_PetroleumWells_3,
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, style_PetroleumWells_3_0(feature));
+            },
+        });
+        
+        var cluster_PetroleumWells_3 = new L.MarkerClusterGroup({showCoverageOnHover: false, spiderfyDistanceMultiplier: 2});
+        cluster_PetroleumWells_3.addLayer(layer_PetroleumWells_3);
+        bounds_group.addLayer(layer_PetroleumWells_3);
+        cluster_PetroleumWells_3.addTo(map);
+
+        function pop_GreenHouseGasPermits_4(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="OBJECTID" colspan="2"><strong>OBJECTID</strong><br />' + (feature.properties['OBJECTID'] !== null ? autolinker.link(String(feature.properties['OBJECTID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="Title" colspan="2"><strong>Title</strong><br />' + (feature.properties['Title'] !== null ? autolinker.link(String(feature.properties['Title']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['RelTitle'] !== null ? autolinker.link(String(feature.properties['RelTitle']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TitleType'] !== null ? autolinker.link(String(feature.properties['TitleType']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">ExpiryDate</th>\
+                        <td class="visible-with-data" id="ExpiryDate">' + (feature.properties['ExpiryDate'] !== null ? autolinker.link(String(feature.properties['ExpiryDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GrantDate'] !== null ? autolinker.link(String(feature.properties['GrantDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['LastReDate'] !== null ? autolinker.link(String(feature.properties['LastReDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NoOfRenews'] !== null ? autolinker.link(String(feature.properties['NoOfRenews']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['EndDate'] !== null ? autolinker.link(String(feature.properties['EndDate']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Status</th>\
+                        <td class="visible-with-data" id="Status">' + (feature.properties['Status'] !== null ? autolinker.link(String(feature.properties['Status']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">FieldName</th>\
+                        <td class="visible-with-data" id="FieldName">' + (feature.properties['FieldName'] !== null ? autolinker.link(String(feature.properties['FieldName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['BasinName'] !== null ? autolinker.link(String(feature.properties['BasinName']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['SubBasin'] !== null ? autolinker.link(String(feature.properties['SubBasin']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['OffShoreAr'] !== null ? autolinker.link(String(feature.properties['OffShoreAr']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TitleOprat'] !== null ? autolinker.link(String(feature.properties['TitleOprat']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TitleHold'] !== null ? autolinker.link(String(feature.properties['TitleHold']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NoOfBlocks'] !== null ? autolinker.link(String(feature.properties['NoOfBlocks']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['AreaKM2'] !== null ? autolinker.link(String(feature.properties['AreaKM2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NEATS_Link'] !== null ? autolinker.link(String(feature.properties['NEATS_Link']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TITLE_NUMB'] !== null ? autolinker.link(String(feature.properties['TITLE_NUMB']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Shape_Leng'] !== null ? autolinker.link(String(feature.properties['Shape_Leng']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Shape_Area'] !== null ? autolinker.link(String(feature.properties['Shape_Area']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+            layer.on('popupopen', function(e) { addClassToPopupIfMedia(content, e.popup); });
+            layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_GreenHouseGasPermits_4_0() {
+            return { pane: 'pane_GreenHouseGasPermits_4', opacity: 1, color: 'rgba(77,175,74,1.0)', dashArray: '', lineCap: 'square', lineJoin: 'bevel', weight: 4.0, fillOpacity: 0, interactive: true }
+        }
+        
+        map.createPane('pane_GreenHouseGasPermits_4');
+        map.getPane('pane_GreenHouseGasPermits_4').style.zIndex = 404;
+        var layer_GreenHouseGasPermits_4 = new L.geoJson(json_GreenHouseGasPermits_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_GreenHouseGasPermits_4',
+            layerName: 'layer_GreenHouseGasPermits_4',
+            pane: 'pane_GreenHouseGasPermits_4',
+            onEachFeature: pop_GreenHouseGasPermits_4,
+            style: style_GreenHouseGasPermits_4_0,
+        });
+        bounds_group.addLayer(layer_GreenHouseGasPermits_4);
+        map.addLayer(layer_GreenHouseGasPermits_4);
+
+        /* Clean overlay tree setup stripped of baseline raw text HTML strings */
+        var overlaysTree = [
+            {label: 'GreenHouse Gas Permits', layer: layer_GreenHouseGasPermits_4},
+            {label: 'Petroleum Wells', layer: cluster_PetroleumWells_3},
+            {label: 'Petroleum Lines', layer: layer_PetroleumLines_2},
+            {label: 'Petroleum Titles', layer: layer_PetroleumTitles_1},
+            {label: 'OSM Standard Base Map', layer: layer_OSMStandard_0}
+        ];
+
+        var lay = L.control.layers.tree(null, overlaysTree, {
+            collapsed: false
+        });
+        lay.addTo(map);
+
+        /* Target the native Leaflet node wrapper container and force append into custom layout hook container */
+        var layerControlRoot = lay.getContainer();
+        document.getElementById('layer-toggles-container').appendChild(layerControlRoot);
+
+        setBounds();
+        </script>        
+    </body>
+</html>
